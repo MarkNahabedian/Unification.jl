@@ -1,0 +1,13 @@
+name = "Unification"
+uuid = "c9fa8389-adc5-4f38-9e64-96b85f2f1b62"
+authors = ["MarkNahabedian <naha@mit.edu> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
