@@ -1,5 +1,6 @@
 module Unification
 
-# Write your package code here.
+include("bindings.jl")
+include("unify.jl")
 
 end
