@@ -1,4 +1,5 @@
 
+export unify
 
 """
     unify(continuation, expression1, expression2, bindings=EmptyBindings())
@@ -7,6 +8,10 @@ Unify the two expressions, calling `continuation` with
 bindings that satisfy the unification.
 """
 function unify end
+
+function unify(continuation, thing1, thing2)
+    unify(continuation, thing1, thing2, EmptyBindings())
+end
 
 ### Ignore
 
@@ -39,16 +44,22 @@ function unify(continuation, thing1::Any, thing2::Any, bindings::AbstractBinding
   end
 end
 
-### Numbers
+### Things that need to be == to unify
 
-# Numbers of different types that might be equal:
-function unify(continuation, thing1::Number, thing2::Number, bindings::AbstractBindings)
-  if thing1 == thing2
-    continuation(bindings)
-  end
+macro unify_equal(typ, op)
+    :(function unify(continuation, thing1::$typ, thing2::$typ, bindings::AbstractBindings)
+          if $op(thing1, thing2)
+              continuation(bindings)
+          end
+      end)
 end
 
-
+# Numbers of different types that might be equal:
+@unify_equal(Number, ==)
+@unify_equal(Symbol, ==)
+@unify_equal(AbstractChar, ==)
+@unify_equal(AbstractString, ==)
+    
 ### Everything Else
 
 # Does this shadow the Any, ANy method?
@@ -56,12 +67,12 @@ function unify(continuation, thing1::T, thing2::T, bindings::AbstractBindings) w
     if thing1 == thing2
         return continuation(bindings)
     end
-    fieldnames = fieldnames(T)
+    fields = fieldnames(T)
     function unify_fields(index, bindings)
-        if index > length(fieldnames)
+        if index > length(fields)
             return continuation(bindings)
         end
-        field = fieldnames[index]
+        field = fields[index]
         unify(thing1.field, thing2.field, bindings) do bindings
             return unify_fields(index + 1, bindings)
         end
