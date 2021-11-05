@@ -19,7 +19,7 @@ function unify(continuation, ::Ignore, other::Any, bindings::AbstractBindings)
   continuation(bindings)
 end
 
-function unify(continuation, ::Any, other::Ignore, bindings::AbstractBindings)
+function unify(continuation, ::Any, ::Ignore, bindings::AbstractBindings)
   continuation(bindings)
 end
 
@@ -56,57 +56,55 @@ end
 
 # Numbers of different types that might be equal:
 @unify_equal(Number, ==)
+
 @unify_equal(Symbol, ==)
 @unify_equal(AbstractChar, ==)
 @unify_equal(AbstractString, ==)
-    
-### Everything Else
 
-# Does this shadow the Any, ANy method?
+    
+### Types with fields
+
+# Pair has fields
+
+# Hacky predicate dispatch mechanism.
+abstract type UnificationStrategy end
+
 function unify(continuation, thing1::T, thing2::T, bindings::AbstractBindings) where T
+    # Short circuit for objects that are equal and structs with no fields
     if thing1 == thing2
         return continuation(bindings)
     end
-    fields = fieldnames(T)
+    # Tryeach unification strategy
+    for strategy in subtypes(UnificationStrategy)
+        unify(continuation, strategy(),
+              thing1, thing2, bindings::AbstractBindings)
+    end
+end
+
+
+# I don't know how to tell if an object is implemented as a struct
+# except to see if it has any fields.  Of courcse, a struct could have
+# no fields, which would make it a singleton type.
+struct UnifyFields <: UnificationStrategy end
+
+function unify(continuation, strategy::UnifyFields, thing1, thing2, bindings::AbstractBindings)
+    fields = fieldnames(typeof(thing1))
+    if length(fields) == 0
+        return
+    end
     function unify_fields(index, bindings)
         if index > length(fields)
             return continuation(bindings)
         end
         field = fields[index]
-        unify(thing1.field, thing2.field, bindings) do bindings
-            return unify_fields(index + 1, bindings)
-        end
+        unify(getfield(thing1, field),
+              getfield(thing2, field),
+              bindings) do bindings
+                  return unify_fields(index + 1, bindings)
+              end
     end
     unify_fields(1, bindings)
 end
 
 
-#=
-# I don't see a way to define a method for types that are implemented
-# as structs, so we can at leasat make it easy for people to define
-# their own standatd unify methods for their struicts.
-
-macro unifystruct(T)
-  :(function unify(thing1::$T, thing2::$T, b=EmptyBindings())::AbstractBindings
-      for f in fieldnames($T)
-        b = unify(getfield(thing1, f), getfield(thing2, f), b)
-      end
-      return b
-    end)
-end
-
-@unifystruct Expr
-=#
 # TODO:  Vector and Tuple
-
-#=
-
-x = :(a, b...)
-
-x.args[2].head
-:...
-x.args[2].args
-1-element Vector{Any}:
- :b
-
-=#
