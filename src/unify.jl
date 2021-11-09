@@ -1,3 +1,4 @@
+using Logging
 
 export unify
 
@@ -15,7 +16,7 @@ end
 
 ### Ignore
 
-function unify(continuation, ::Ignore, other::Any, bindings::AbstractBindings)
+function unify(continuation, ::Ignore, ::Any, bindings::AbstractBindings)
   continuation(bindings)
 end
 
@@ -62,9 +63,49 @@ end
 @unify_equal(AbstractString, ==)
 
     
-### Types with fields
+### Things that are finitely indexable:
 
-# Pair has fields
+function unify_indexable(continuation, index1, thing1, index2, thing2,
+                         bindings::AbstractBindings)
+    exhausted1 = index1 > lastindex(thing1)
+    exhausted2 = index2 > lastindex(thing2)
+    if exhausted1 && exhausted2
+        return continuation(bindings)
+    end
+    if exhausted1 || exhausted2
+        return
+    end
+    unify(thing1[index1], thing2[index2], bindings) do bindings
+        unify_indexable(continuation,
+                        index1 + 1, thing1,
+                        index2 + 1, thing2,
+                        bindings)
+    end
+end
+
+function unify_indexable(continuation, thing1, thing2,
+                         bindings::AbstractBindings)
+    unify_indexable(continuation,
+                    firstindex(thing1), thing1,
+                    firstindex(thing2), thing2,
+                    bindings)
+end
+
+macro generate_unify_indexable_methods(types...)
+    defs = []
+    for t1 = types, t2 = types
+        push!(defs,
+              esc(:(function unify(continuation, thing1::$t1, thing2::$t2, bindings::AbstractBindings)
+                        unify_indexable(continuation, thing1, thing2, bindings)
+                    end)))
+    end
+    return :(begin $(defs...) end)
+end
+
+@generate_unify_indexable_methods(AbstractVector, Tuple)
+
+
+### Types with fields
 
 # Hacky predicate dispatch mechanism.
 abstract type UnificationStrategy end
@@ -107,4 +148,4 @@ function unify(continuation, strategy::UnifyFields, thing1, thing2, bindings::Ab
 end
 
 
-# TODO:  Vector and Tuple
+

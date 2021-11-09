@@ -59,3 +59,14 @@ end
     @test test_unify(Struct0(), Struct0a()) == false
 end
 
+@testset "unify indexable" begin
+    r1 = 3:8
+    v1 = collect(r1)
+    t1 = Tuple(r1)
+    @test test_unify(r1, v1) == true
+    @test test_unify(r1, t1) == true
+    @test test_unify(t1, v1) == true
+    v2 = [1, 2, 3]
+    @test test_unify(v1, v2) == false
+end
+
