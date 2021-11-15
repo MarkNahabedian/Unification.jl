@@ -119,11 +119,11 @@ end
 
 
 """
-    lookupequiv(::bBindings, ::AbstractVar)::(Set{Any}, Set{AbstractVar})
+    lookupequiv(::bBindings, ::AbstractVar)
 Return a `Set` of all of the values associated with the `AbstractVar`
 and another Set of all equivalent (transitively bound) `AbstractVar`s.
 """
-function lookupequiv(bindings::AbstractBindings, var::AbstractVar)::(Set{Any}, Set{AbstractVar})
+function lookupequiv(bindings::AbstractBindings, var::AbstractVar)
     found = Set{Any}()
     queue = Vector{AbstractVar}()
     push!(queue, var)
