@@ -24,90 +24,40 @@ end
             end
         end
     end
-end
-
-#=
-@testset "circular bindings" begin
-    a = V"a"
-    b = V"b"
-    c = V"c"
-    bindings = Bindings(a, b,
-                        Bindings(b, c,
-                                 Bindings(c, a,
-                                          EmptyBindings())))
-    @test lookup(bindings, a) == (nothing, false, :exhausted)
-    @test lookup(bindings, b) == (nothing, false, :exhausted)
-    @test lookup(bindings, c) == (nothing, false, :exhausted)
-    ubind(b, 4, bindings) do bindings
-        println("***", bindings)
-        @test lookup(bindings, b) == (4, true)
-        @test lookup(bindings, a) == (4, true)
-        @test lookup(bindings, c) == (4, true)
+    ubind([a=>b]) do bindings
+        # Binding two variables together is symetric:
+        @test lookup(bindings, a) == (b, true)
+        @test lookup(bindings, b) == (a, true)
     end
 end
-=#
 
-#=
-@testset "test_bindings" begin
+@testset "lookupall" begin
     a = V"a"
     b = V"b"
-    c = V"c"
-    d = V"d"
-    ubind(
-        function(bindings)
-            println(bindings)
-            @test lookup(bindings, a) == (2, true)
-            @test lookup(bindings, b) == (nothing, false)
-            ubind(
-                function(bindings)
-                    ubind(
-                        function(bindings)
-                            ubind(
-                                function(bindings)
-                                    @test lookup(bindings, a) == (2, true)
-                                    @test lookup(bindings, b) == (2, true)
-                                    @test lookup(bindings, c) == (2, true)
-                                    @test lookup(bindings, d) == (3, true)
-                                    dict = toDict(bindings)
-                                    @test dict[a] == 2
-                                    @test dict[b] == 2
-                                    @test dict[c] == 2
-                                    @test dict[d] == 3
-                                end,
-                                c, a, bindings)
-                        end,
-                        b, c, bindings)
-                end
-                ,d, 3, bindings)
-        end,
-        a, 2)
-end
-=#
-#=
-@testset "test_bindings" begin
-    a = V"a"
-    b = V"b"
-    c = V"c"
-    d = V"d"
-    ubind(a, 2) do bindings
-        @test lookup(bindings, a) == (2, true)
-        @test lookup(bindings, b) == (nothing, false)
-        ubind(d, 3, bindings) do bindings
-            ubind(b, c, bindings) do bindings
-                ubind(c, a, bindings) do bindings
-                    @test lookup(bindings, a) == (2, true)
-                    @test lookup(bindings, b) == (2, true)
-                    @test lookup(bindings, c) == (2, true)
-                    @test lookup(bindings, d) == (3, true)
-                    dict = toDict(bindings)
-                    @test dict[a] == 2
-                    @test dict[b] == 2
-                    @test dict[c] == 2
-                    @test dict[d] == 3
-                end
-            end
-        end
+    ubind([a=>1, b=>2, a=>3]) do bindings
+        @test lookupall(bindings, b) == Set([2])
+        @test lookupall(bindings, a) == Set([3, 1])
+    end
+    ubind([a=>b]) do bindings
+        # Binding two variables together is symetric:
+        @test lookupall(bindings, a) == Set([b])
+        @test lookupall(bindings, b) == Set([a])
     end
 end
-=#
+
+@testset "lookupequiv" begin
+    a = V"a"
+    b = V"b"
+    c = V"c"
+    ubind([a=>b, b=>a, c=>3, a=>c]) do bindings
+        found, vars = lookupequiv(bindings, a)
+        @test found == Set{Any}(3)
+        @test vars == Set{AbstractVar}([a, b, c])
+    end
+    ubind([a=>b, a=>c]) do bindings
+        found, vars = lookupequiv(bindings, c)
+        @test found == Set{Any}()
+        @test vars == Set{AbstractVar}([a, b, c])
+    end
+end
 

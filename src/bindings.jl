@@ -2,7 +2,7 @@
 export AbstractVar, Var, SubseqVar, Ignore
 export @V_str
 export AbstractBindings, EmptyBindings, Bindings
-export lookup, ubind, toDict
+export lookup, lookupall, lookupequiv, ubind, toDict
 
 
 abstract type AbstractVar end
@@ -16,9 +16,13 @@ struct Var <: AbstractVar
 end
 
 # Do we need to include some notion of scope?
-function same(var1::Var, var2::Var)::Bool
-    var1.name == var2.name
+function same(var1::AbstractVar, var2::AbstractVar)::Bool
+    typeof(var1) == typeof(var2) &&
+        var1.name == var2.name
 end
+
+same(var1::AbstractVar, ::Any) = false
+same(::Any, Var1::AbstractVar) = false
 
 
 """
@@ -26,10 +30,6 @@ A Unification variable for subsequences.
 """
 struct SubseqVar <: AbstractVar
     name::Symbol
-end
-
-function same(var1::SubseqVar, var2::Var)::Bool
-    var1.name == var2.name
 end
 
 
@@ -62,27 +62,30 @@ struct EmptyBindings <: AbstractBindings
 end
 
 struct Bindings <: AbstractBindings
-    var::Var
+    var::AbstractVar
     val::Any
     tail::AbstractBindings
+
+    Bindings(var::AbstractVar, val::Any, tail::AbstractBindings) =
+        new(var, val, tail)
 end
 
-"""Issues:
-
-What if a variable is bound more than once, eg V"a" = V"B",
- V"A" = V"c"?
-
-Lookup muct consider the Var bound to Var case and treat is
-symetrically,or ubind needs to bind in both directions.
 
 """
+    lookup(::Bindings, ::AbstractVar)
+returnb the `val` of the first entry in the `Bindings` about the`AbstractVar`.
+"""
+function lookup end
 
-
-function lookup(bindings::EmptyBindings, var::Var)::Any
+function lookup(bindings::EmptyBindings, var::AbstractVar)::Any
     return nothing, false
 end
 
-function lookup(bindings::Bindings, var::Var)::Any
+function lookup(bindings::AbstractBindings, var::Any)
+    return nothing, false
+end
+
+function lookup(bindings::Bindings, var::AbstractVar)::Any
     if same(bindings.var, var)
         return bindings.val, true
     elseif isa(bindings.val, Var) && same(var, bindings.val)
@@ -92,68 +95,84 @@ function lookup(bindings::Bindings, var::Var)::Any
     lookup(bindings.tail, var)
 end
 
-#=
-function lookup(bindings::Bindings, var::Var)::Any
-    # Guard against circular variable bindings:
-    vars = []
-    while !(var in vars)
-        push!(vars, var)
-        val, found = lookup1(bindings.tail, var)
-        if !found
-            return nothing, false, :not_found
-        end
-        if !isa(val, AbstractVar)
-            return val, found
-        end
-        if val in vars  # circular
-            return nothing, false, :circular
-        end
-        var = val
-    end
-    return nothing, false, :exhausted
-end
-=#
 
-function ubind(continuation, var::Var, value::Any,
+"""
+    lookupall(::Bindings, ::AbstractVar)::Set{Any}
+Return a `Vector` of all of the `val`s in the `Bindings` which
+correspond with the specified `AbstractVar`.
+"""
+function lookupall(bindings::Bindings, var::AbstractVar)::Set{Any}
+    found = Set{Any}()
+    function la(bindings::EmptyBindings) end
+    function la(bindings::Bindings)
+        if same(bindings.var, var)
+            push!(found, bindings.val)
+        elseif same(bindings.val, var)
+            # Binding a variable to a variable is symetric:
+            push!(found, bindings.var)
+        end
+        la(bindings.tail)
+    end
+    la(bindings)
+    return found
+end
+
+
+"""
+    lookupequiv(::bBindings, ::AbstractVar)::(Set{Any}, Set{AbstractVar})
+Return a `Set` of all of the values associated with the `AbstractVar`
+and another Set of all equivalent (transitively bound) `AbstractVar`s.
+"""
+function lookupequiv(bindings::AbstractBindings, var::AbstractVar)::(Set{Any}, Set{AbstractVar})
+    found = Set{Any}()
+    queue = Vector{AbstractVar}()
+    push!(queue, var)
+    done = Set{AbstractVar}()
+    while !isempty(queue)
+        var = pop!(queue)
+        if var in done    ##### Probably using == rather than same
+            continue
+        end
+        push!(done, var)
+        vals = lookupall(bindings, var)
+        # With Set I don't think we can skip over the ones already returned.
+        for val in vals
+            if val isa AbstractVar
+                push!(queue, val)
+            else
+                push!(found, val)
+            end
+        end
+    end
+    return found, done
+end
+
+"""
+    ubind(continuation, var::AbstractVar, val::Any, [::AbstractBindings])
+Call `continuation` with the binding of `var` to `val` added
+to `bindings`.
+"""
+function ubind(continuation, var::AbstractVar, value::Any,
                bindings::AbstractBindings = EmptyBindings())
     continuation(Bindings(var, value, bindings))
 end
 
+"""
+    ubind(continuation, pairs::Vector{Pair{<:AbstractVar, <:Any}}, ::AbstractBindings=EmptyBindings())
+Call `continuation` on a chain of `Bindings` where the `Pair`s are added to
+the head of the chain such that the first pair is at the
+head of the chain.
+"""
+function ubind(continuation, pairs::Vector{<:Pair{<:AbstractVar, <:Any}},
+               bindings::AbstractBindings=EmptyBindings())
+    for i = lastindex(pairs) : -1 :firstindex(pairs)
+        p = pairs[i]
+        bindings = Bindings(p.first, p.second, bindings)
+    end
+    continuation(bindings)
+end
+
 #=
-function ubind(continuation, var1::Var, var2::Var,
-               bindings::AbstractBindings = EmptyBindings())
-    if same(var1, var2)
-        return continuation(bindings)
-    end
-    v1 = lookup(bindings, var1)
-    v2 = lookup(bindings, var2)
-    if !isa(v1, Var) && !isa(v2, Var)
-        if v1 != v2
-            return
-        else
-            return continuation(bindings)
-        end
-    end
-    if v1 isa Var
-        ErrorException("???")
-    end
-end
-
-function ubind(continuation, var::Var, value::Any,
-               bindings::AbstractBindings = EmptyBindings())
-    # ??? What about variables unified with variables and circularity?
-    v, found = lookup(bindings, var)
-    while found && v isa Var && v != var
-        v, found == lookup(bindings, v)
-    end
-    if !found
-        continuation(Bindings(var, value, bindings))
-    elseif v == value
-        continuation(bindings)
-    end
-end
-=#
-
 function toDict(bindings::AbstractBindings)::Dict{AbstractVar, Any}
     d = Dict{AbstractVar, Any}()
     b = bindings
@@ -169,4 +188,4 @@ function toDict(bindings::AbstractBindings)::Dict{AbstractVar, Any}
     end
     return d
 end
-
+=#
