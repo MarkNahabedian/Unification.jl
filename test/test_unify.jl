@@ -94,8 +94,8 @@ end
         @test test_unify((V"a", V"b"), (V"b", V"a")) == false
     end
     unify((V"a", 2, V"a"), (V"b", V"b", 2)) do bindings
-        # @test lookup(bindings, V"b") = (2, true)
-        # @test lookup(bindings, V"a") = (2, true)
+        @test lookup(bindings, V"b") == (2, true)
+        @test lookup(bindings, V"a") == (2, true)
     end
 end
 
