@@ -14,6 +14,9 @@ A Unification vatiable.
 """
 struct Var <: AbstractVar
     name::Symbol
+
+    Var(name::AbstractString) = Var(Symbol(name))
+    Var(name::Symbol) = new(name)
 end
 
 # Do we need to include some notion of scope?
@@ -31,6 +34,10 @@ A Unification variable for subsequences.
 """
 struct SubseqVar <: AbstractVar
     name::Symbol
+
+    SubseqVar(name::AbstractString) = SubseqVar(Symbol(name))
+    SubseqVar(name::Symbol) = new(name)
+
 end
 
 
@@ -45,9 +52,9 @@ macro V_str(name)
     if length(name) == 0
         :(Ignore())
     elseif endswith(name, "...")
-        :(SubseqVar(Symbol($name)))
+        :(SubseqVar($name))
     else
-        :(Var(Symbol($name)))
+        :(Var($name))
     end
 end 
 
