@@ -101,7 +101,7 @@ end
 Return a `Vector` of all of the `val`s in the `Bindings` which
 correspond with the specified `AbstractVar`.
 """
-function lookupall(bindings::Bindings, var::AbstractVar)::Set{Any}
+function lookupall(bindings::AbstractBindings, var::AbstractVar)::Set{Any}
     found = Set{Any}()
     function la(bindings::EmptyBindings) end
     function la(bindings::Bindings)
