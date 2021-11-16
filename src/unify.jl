@@ -1,12 +1,11 @@
-using Logging
 
 export unify
 
 """
     unify(continuation, expression1, expression2, bindings=EmptyBindings())
 
-Unify the two expressions, calling `continuation` with
-bindings that satisfy the unification.
+Unify the two expressions, calling `continuation` with each set of
+bindings which satisfy the unification.
 """
 function unify end
 
@@ -27,26 +26,84 @@ end
 ### Var
 
 function unify(continuation, var::Var, other::Any, bindings::AbstractBindings)
-    ubind(continuation, bindings, var, other)
+    unify_var(continuation, var, other, bindings)
 end
 
 function unify(continuation, other::Any, var::Var, bindings::AbstractBindings)
-    ubind(continuation, bindings, var, other)
+    unify_var(continuation, var, other, bindings)
 end
+
+function unify(continuation, var1::Var, var2::Var, bindings::AbstractBindings)
+    ##### Is this enough
+    unify_var(continuation, var1, var2, bindings)
+end
+
+"""
+`unify` with a `NoCirc` always succeeds unless the NoCirc is being unified
+against its subject `var`.
+"""
+struct NoCirc <: AbstractVar
+    var::AbstractVar
+end
+
+function unify(continuation, nc::NoCirc, ::Any, bindings::AbstractBindings)
+    continuation(bindings)
+end
+
+function unify(continuation, nc::NoCirc, var::Var, bindings::AbstractBindings)
+    @debug("unify #nc, $var, $bindings")
+    if same(nc.var, var)
+        return
+    end
+    continuation(bindings)
+end
+
+function unify(continuation, ::Any, nc::NoCirc, bindings)
+    throw(ErrorException("$nc appeared in right hand side of unify."))
+end
+
+function unify_var(continuation, var::Var, other::Any, bindings::AbstractBindings)
+    @debug("unify_var $var $other $bindings")
+    values, _ = lookupequiv(bindings, var)
+    if length(values) > 1
+        # Variable's value is already ambiguous.
+        return
+    end
+    if length(values) == 1
+        return unify(continuation, val, other, bindings)
+    end
+    # To avoid a reference cycle, we must make sure `var` does not
+    # appear anywhere in `other`.  It would be nice if there were only
+    # one generic function that needed to code how to walk non-atomic
+    # data.  We use `unify` for that.  We unify `other` against a NoCirc
+    # that matches anything but the variable we are looking for.
+    #=
+    unify(NoCirc(var), other, bindings) do bindings
+        ubind(continuation, var, other, bindings)
+    end
+    =#
+end
+
 
 ### SubseqVar
 
 ### default
 
-# Is this method shadowed by the one on T, T where T?
+##### Is this method shadowed by the one on T, T where T?
 function unify(continuation, thing1::Any, thing2::Any, bindings::AbstractBindings)
   if thing1 == thing2
     continuation(bindings)
   end
 end
 
+
 ### Things that need to be == to unify
 
+"""
+    @unify_equal(typ, op)
+Define a method on `unify` for type `typ` that only succeeds if the
+two instances of `typ` satisfy `op`.
+"""
 macro unify_equal(typ, op)
     :(function unify(continuation, thing1::$typ, thing2::$typ, bindings::AbstractBindings)
           if $op(thing1, thing2)
@@ -115,7 +172,7 @@ function unify(continuation, thing1::T, thing2::T, bindings::AbstractBindings) w
     if thing1 == thing2
         return continuation(bindings)
     end
-    # Tryeach unification strategy
+    # Try each unification strategy
     for strategy in subtypes(UnificationStrategy)
         unify(continuation, strategy(),
               thing1, thing2, bindings::AbstractBindings)
@@ -124,7 +181,7 @@ end
 
 
 # I don't know how to tell if an object is implemented as a struct
-# except to see if it has any fields.  Of courcse, a struct could have
+# except to see if it has any fields.  Of course, a struct could have
 # no fields, which would make it a singleton type.
 struct UnifyFields <: UnificationStrategy end
 
@@ -146,6 +203,4 @@ function unify(continuation, strategy::UnifyFields, thing1, thing2, bindings::Ab
     end
     unify_fields(1, bindings)
 end
-
-
 

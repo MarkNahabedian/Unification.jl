@@ -6,9 +6,9 @@
     bindings = Bindings(a, 1,
                         Bindings(b, 2,
                                  EmptyBindings()))
-    @test lookup(bindings, a) == (1, true)
-    @test lookup(bindings, b) == (2, true)
-    @test lookup(bindings, c) == (nothing, false)
+    @test lookupfirst(bindings, a) == (1, true)
+    @test lookupfirst(bindings, b) == (2, true)
+    @test lookupfirst(bindings, c) == (nothing, false)
 end
 
 @testset "ubind" begin
@@ -18,16 +18,27 @@ end
     ubind(a, 1) do bindings
         ubind(b, 2, bindings) do bindings
             ubind(c, 3, bindings) do bindings
-                @test lookup(bindings, a) == (1, true)
-                @test lookup(bindings, b) == (2, true)
-                @test lookup(bindings, c) == (3, true)
+                @test lookupfirst(bindings, a) == (1, true)
+                @test lookupfirst(bindings, b) == (2, true)
+                @test lookupfirst(bindings, c) == (3, true)
             end
         end
     end
     ubind([a=>b]) do bindings
         # Binding two variables together is symetric:
-        @test lookup(bindings, a) == (b, true)
-        @test lookup(bindings, b) == (a, true)
+        @test lookupfirst(bindings, a) == (b, true)
+        @test lookupfirst(bindings, b) == (a, true)
+    end
+end
+
+@testset "bindings iteration" begin
+    @test Base.IteratorSize(EmptyBindings) == Base.SizeUnknown()
+    @test Base.IteratorSize(Bindings) == Base.SizeUnknown()
+    @test Base.IteratorEltype(EmptyBindings) == Tuple{AbstractVar, Any}
+    @test Base.IteratorEltype(Bindings) == Tuple{AbstractVar, Any}
+    ubind([V"a"=>1, V"b"=>2, V"c"=>3]) do bindings
+        @test map(p -> p[1], bindings) == [V"a", V"b", V"c"]
+        @test map(p -> p[2], bindings) == [1, 2, 3]
     end
 end
 

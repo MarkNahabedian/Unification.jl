@@ -1,4 +1,6 @@
 
+using Logging
+
 trace_unifications = false
 
 function test_unify(thing1, thing2)
@@ -68,5 +70,32 @@ end
     @test test_unify(t1, v1) == true
     v2 = [1, 2, 3]
     @test test_unify(v1, v2) == false
+end
+
+@testset "unify variables" begin
+    struct Struct1
+        a
+        b
+    end
+    unify(Struct1(V"a", V"b"), Struct1(:a, :b)) do bindings
+        @test lookup(bindings, V"a") == (:a, true)
+        @test lookup(bindings, V"b") == (:b, true)
+    end
+    unify(Struct1(V"a", :b), Struct1(:a, V"b")) do bindings
+        @test lookup(bindings, V"a") == (:a, true)
+        @test lookup(bindings, V"b") == (:b, true)
+    end
+    @test test_unify((V"a", V"a", 3), (1, 2, 3)) == false
+    unify((V"a", V"a", 3), (1, 1, 3)) do bindings
+        @test lookup(bindings, V"a") == (1, true)
+    end
+    # Transitive circular reference:
+    with_logger(SimpleLogger(stdout, Logging.Info)) do
+        @test test_unify((V"a", V"b"), (V"b", V"a")) == false
+    end
+    unify((V"a", 2, V"a"), (V"b", V"b", 2)) do bindings
+        # @test lookup(bindings, V"b") = (2, true)
+        # @test lookup(bindings, V"a") = (2, true)
+    end
 end
 

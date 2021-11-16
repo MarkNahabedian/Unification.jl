@@ -2,7 +2,8 @@
 export AbstractVar, Var, SubseqVar, Ignore
 export @V_str
 export AbstractBindings, EmptyBindings, Bindings
-export lookup, lookupall, lookupequiv, ubind, toDict
+export lookupfirst, lookupall, lookupequiv, lookup
+export ubind, toDict
 
 
 abstract type AbstractVar end
@@ -40,17 +41,15 @@ struct Ignore end
 
 
 macro V_str(name)
-    quote
-        n = $name
-        if length(n) == 0
-            Ignore()
-        elseif endswith(n, "...")
-            SubseqVar(Symbol(n))
-        else
-            Var(Symbol(n))
-        end
+    @assert name isa AbstractString
+    if length(name) == 0
+        :(Ignore())
+    elseif endswith(name, "...")
+        :(SubseqVar(Symbol($name)))
+    else
+        :(Var(Symbol($name)))
     end
-end
+end 
 
 
 abstract type AbstractBindings end
@@ -61,6 +60,13 @@ The endmost tail of a bindings chain.
 struct EmptyBindings <: AbstractBindings
 end
 
+Base.iterate(::EmptyBindings) = nothing
+Base.iterate(::AbstractBindings, ::EmptyBindings) = nothing
+
+Base.IteratorSize(::Type{<:AbstractBindings}) = Base.SizeUnknown()
+Base.IteratorEltype(::Type{<:AbstractBindings}) = Tuple{AbstractVar, Any}
+
+
 struct Bindings <: AbstractBindings
     var::AbstractVar
     val::Any
@@ -70,29 +76,25 @@ struct Bindings <: AbstractBindings
         new(var, val, tail)
 end
 
+Base.iterate(b::Bindings, state::Bindings=b) = (state.var, state.val), state.tail
+
 
 """
-    lookup(::Bindings, ::AbstractVar)
+    lookupfirst(::AbstractBindings, ::AbstractVar)
 returnb the `val` of the first entry in the `Bindings` about the`AbstractVar`.
 """
-function lookup end
-
-function lookup(bindings::EmptyBindings, var::AbstractVar)::Any
-    return nothing, false
-end
-
-function lookup(bindings::AbstractBindings, var::Any)
-    return nothing, false
-end
-
-function lookup(bindings::Bindings, var::AbstractVar)::Any
-    if same(bindings.var, var)
-        return bindings.val, true
-    elseif isa(bindings.val, Var) && same(var, bindings.val)
-        #Var bound to Var is symetric:
-        return bindings.var, true
+function lookupfirst(bindings::AbstractBindings, var::AbstractVar)
+    for (v, val) in bindings
+        @debug "$v, $val"
+        if same(v, var)
+            return val, true
+        end
+        # Binding a var to another var is symetric:
+        if same(val, var)
+            return v, true
+        end
     end
-    lookup(bindings.tail, var)
+    return nothing, false
 end
 
 
@@ -103,17 +105,14 @@ correspond with the specified `AbstractVar`.
 """
 function lookupall(bindings::AbstractBindings, var::AbstractVar)::Set{Any}
     found = Set{Any}()
-    function la(bindings::EmptyBindings) end
-    function la(bindings::Bindings)
-        if same(bindings.var, var)
-            push!(found, bindings.val)
-        elseif same(bindings.val, var)
+    for (v, val) in bindings
+        if same(v, var)
+            push!(found, val)
+        elseif same(val, var)
             # Binding a variable to a variable is symetric:
-            push!(found, bindings.var)
+            push!(found, v)
         end
-        la(bindings.tail)
     end
-    la(bindings)
     return found
 end
 
@@ -146,6 +145,22 @@ function lookupequiv(bindings::AbstractBindings, var::AbstractVar)
     end
     return found, done
 end
+
+
+"""
+    lookup(bindings::AbstractBindings, var::AbstractVar)
+Return the value assoiciated with `var` in `bindings`.
+The second return value is `true` if a unique value is found
+and `false` otherwise.
+"""
+function lookup(bindings::AbstractBindings, var::AbstractVar)
+    values, _ = lookupequiv(bindings, var)
+    if length(values) == 1
+        return first(values), true
+    end
+    return nothing, false
+end
+
 
 """
     ubind(continuation, var::AbstractVar, val::Any, [::AbstractBindings])
