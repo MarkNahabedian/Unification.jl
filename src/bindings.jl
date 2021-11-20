@@ -88,7 +88,7 @@ Base.iterate(b::Bindings, state::Bindings=b) = (state.var, state.val), state.tai
 
 """
     lookupfirst(::AbstractBindings, ::AbstractVar)
-returnb the `val` of the first entry in the `Bindings` about the`AbstractVar`.
+Return the `val` of the first entry in the `Bindings` about the`AbstractVar`.
 """
 function lookupfirst(bindings::AbstractBindings, var::AbstractVar)
     for (v, val) in bindings
@@ -125,7 +125,7 @@ end
 
 
 """
-    lookupequiv(::bBindings, ::AbstractVar)
+    lookupequiv(::Bindings, ::AbstractVar)
 Return a `Set` of all of the values associated with the `AbstractVar`
 and another Set of all equivalent (transitively bound) `AbstractVar`s.
 """
