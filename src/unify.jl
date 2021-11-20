@@ -1,5 +1,59 @@
 
 export unify
+export UNIFICATION_FAILURE_LOGGING_LEVEL, logging_unification_failures
+export unification_failure
+
+"""
+    UNIFICATION_FAILURE_LOGGING_LEVEL
+See `@unification_failure`.
+"""
+UNIFICATION_FAILURE_LOGGING_LEVEL = false
+
+function logging_unification_failures(f, level)
+    global UNIFICATION_FAILURE_LOGGING_LEVEL
+    was = UNIFICATION_FAILURE_LOGGING_LEVEL
+    try
+        UNIFICATION_FAILURE_LOGGING_LEVEL = level
+        f()
+    finally
+        UNIFICATION_FAILURE_LOGGING_LEVEL = was
+    end
+end
+
+"""
+   @unification_failure(thing1, thing2)
+Logs that `unify` failed for `thing` and `thing2`.
+If the value of `UNIFICATION_FAILURE_LOGGING_LEVEL` is a
+Logging.LogLevel` then it is the log level for this message,
+otherwise no log entry is made.
+"""
+macro unification_failure(thing1, thing2, more...)
+    args = [ :_file => __source__.file,
+             :_line => __source__.line,
+             :_module => __module__,
+             more...]
+    :(
+        if UNIFICATION_FAILURE_LOGGING_LEVEL isa LogLevel
+            #=
+            # Using @logmsg gets the line number wrong.  I want the line
+            # where @unification_failure appears, not the line in the
+            # macro that logs the message.
+            Logging.handle_message(
+                Base.CoreLogging.current_logger_for_env(
+                    UNIFICATION_FAILURE_LOGGING_LEVEL, :none, $m),
+                UNIFICATION_FAILURE_LOGGING_LEVEL,
+                "Unification failure",
+                $m, :none, gensym("id"), $(source.line), "$(source.file)";
+                thing1=$(esc(thing1)), thing2=$(esc(thing2)),
+                more=$(esc(more)))
+            =#
+            @logmsg(UNIFICATION_FAILURE_LOGGING_LEVEL,
+                    "Unification failure",
+                    thing1=$(esc(thing1)), thing2=$(esc(thing2)),
+                    $args...)
+        end)
+end
+    
 
 """
     unify(continuation, expression1, expression2, bindings=EmptyBindings())
@@ -51,9 +105,8 @@ function unify(continuation, nc::NoCirc, ::Any, bindings::AbstractBindings)
 end
 
 function unify(continuation, nc::NoCirc, var::Var, bindings::AbstractBindings)
-    @debug("unify #nc, $var, $bindings")
     if same(nc.var, var)
-        return
+        return continuation(bindings)
     end
     continuation(bindings)
 end
@@ -63,14 +116,14 @@ function unify(continuation, ::Any, nc::NoCirc, bindings)
 end
 
 function unify_var(continuation, var::Var, other::Any, bindings::AbstractBindings)
-    @debug("unify_var $var $other $bindings")
     values, _ = lookupequiv(bindings, var)
     if length(values) > 1
         # Variable's value is already ambiguous.
+        @unification_failure(var, other, values)
         return
     end
     if length(values) == 1
-        return unify(continuation, val, other, bindings)
+        return unify(continuation, first(values), other, bindings)
     end
     # To avoid a reference cycle, we must make sure `var` does not
     # appear anywhere in `other`.  It would be nice if there were only
@@ -82,6 +135,7 @@ function unify_var(continuation, var::Var, other::Any, bindings::AbstractBinding
         ubind(continuation, var, other, bindings)
     end
     =#
+    ubind(continuation, var, other, bindings)
 end
 
 
@@ -91,9 +145,10 @@ end
 
 ##### Is this method shadowed by the one on T, T where T?
 function unify(continuation, thing1::Any, thing2::Any, bindings::AbstractBindings)
-  if thing1 == thing2
-    continuation(bindings)
-  end
+    if thing1 == thing2
+        return continuation(bindings)
+    end
+    @unification_failure(thing1, thing2)
 end
 
 
@@ -107,8 +162,9 @@ two instances of `typ` satisfy `op`.
 macro unify_equal(typ, op)
     :(function unify(continuation, thing1::$typ, thing2::$typ, bindings::AbstractBindings)
           if $op(thing1, thing2)
-              continuation(bindings)
+              return continuation(bindings)
           end
+          @unification_failure(thing1, thing2)
       end)
 end
 
@@ -130,6 +186,7 @@ function unify_indexable(continuation, index1, thing1, index2, thing2,
         return continuation(bindings)
     end
     if exhausted1 || exhausted2
+        @unification_failure(thing1, thing2)
         return
     end
     unify(thing1[index1], thing2[index2], bindings) do bindings
@@ -188,6 +245,7 @@ struct UnifyFields <: UnificationStrategy end
 function unify(continuation, strategy::UnifyFields, thing1, thing2, bindings::AbstractBindings)
     fields = fieldnames(typeof(thing1))
     if length(fields) == 0
+        @unification_failure(thing1, thing2)
         return
     end
     function unify_fields(index, bindings)
