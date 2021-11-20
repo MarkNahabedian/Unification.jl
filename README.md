@@ -1,5 +1,17 @@
 # Unification
 
+A utility for performing logical unification of generqal data
+structures.
+
+This package can unify over Vectores, Tuples and structs -- pretty
+much anything that has fields.
+
+The unifier can be extended by defining additional methods on
+`Unification.unify` or defining a new subtype of
+`UnificationStrategy`.
+
+It is not heavily tested.
+
 ## Logic Variables
 
 Alogic variable is introduced with the `V_str` macro.
