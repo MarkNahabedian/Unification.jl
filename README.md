@@ -14,12 +14,15 @@ It is not heavily tested.
 
 ## Logic Variables
 
-Alogic variable is introduced with the `V_str` macro.
+A logic variable is introduced with the `V_str` macro:
 
 ```
 V"foo"
 Var(:foo)
 ```
+
+Note the upper case 'V'.  Lowercase `v_str` is for version strings.
+
 
 ## Unification
 
@@ -31,8 +34,8 @@ argument.
 ## Bindings
 
 If you wanted to create a Bindings object (like for testing or
-pllaying around), you could call the constructor directly or call
-`ubind`.  Ubindcallsacontinuation function with the resulting
+playing around), you could call the constructor directly, or call
+`ubind`.  `ubind` calls a continuation function with the resulting
 bindings:
 
 ```
@@ -43,7 +46,7 @@ Bindings(Var(:a), 7, EmptyBindings())
 ```
 
 To establish multiple bindings, rather than nesting `ubind`, `ubind`
-also accepts a `Vector` of `Pair`s of a variabletoa value:
+also accepts a `Vector` of `Pair`s of a variable to a value:
 
 ```
 ubind([V"a" => 1, V"b" => 2]) do bindings
@@ -54,7 +57,7 @@ Bindings(Var(:a), 1, Bindings(Var(:b), 2, EmptyBindings()))
 
 Note that the bindings frames are ordered in the same order as the
 `Pair`s in the `Vector`, so the first element of the `Vector` is the
-outermost and most recently added frapme pf the bindings chain.
+outermost and most recently added frame of the bindings chain.
 
 
 ## Lookup
@@ -65,10 +68,12 @@ Some functions are provided for looking up values in bindings.
 finds the first value of  `variable` in `bindings`.
 
 `lookupall(::Bindings, ::AbstractVar)` returns a set of all values
-that are associatwed with the variable in the bindings.  See the
-examples below for why there might be more than ove value associated
-with a variable.  Unification should fail if there is more than one
-non-variable value associated with a variable.
+that are associated with the variable in the bindings.  See the
+examples below for why there might be more than one value associated
+with a variable.  Unification will not fail if there is more than one
+non-variable value associated with a variable.  Continuation functions
+should check for this case when looking up values.  In the future a
+function might be provided to test for this case.
 
 `lookupequiv(::Bindings, ::AbstractVar)` finds all values associated
 with variable and all variables that are equivalent to the subject
