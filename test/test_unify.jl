@@ -90,12 +90,30 @@ end
         @test lookup(bindings, V"a") == (1, true)
     end
     # Transitive circular reference:
-    with_logger(SimpleLogger(stdout, Logging.Info)) do
-        @test test_unify((V"a", V"b"), (V"b", V"a")) == false
+    unify((V"a", V"b"), (V"b", V"a")) do bindings
+        vals, vars = lookupequiv(bindings, V"a")
+        @test isempty(vals) == true
+        @test vars == Set([V"a", V"b"])
     end
     unify((V"a", 2, V"a"), (V"b", V"b", 2)) do bindings
         @test lookup(bindings, V"b") == (2, true)
         @test lookup(bindings, V"a") == (2, true)
     end
+end
+
+@testset "unification examples" begin
+    unified = false
+    logging_unification_failures(false #= Logging.Debug =#) do
+         with_logger(SimpleLogger(stdout, Logging.Debug)) do
+            unify([Struct1(3, V"foo"), 12],
+                  [Struct1(V"bar", V"c"), V"c"]) do bindings
+                      unified = true
+                      @test lookup(bindings, V"bar") == (3, true)
+                      @test lookup(bindings, V"foo") == (12, true)
+                      @test lookup(bindings, V"c") == (12, true)
+                  end
+        end
+    end
+    @test unified == true
 end
 
