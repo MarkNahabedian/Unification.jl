@@ -3,12 +3,16 @@
 A utility for performing logical unification of generqal data
 structures.
 
-This package can unify over Vectores, Tuples and structs -- pretty
-much anything that has fields.
+This package can unify over Vectors, Tuples and structs -- pretty much
+anything that has fields (this is how `Pair` is supported, for example).
 
 The unifier can be extended by defining additional methods on
 `Unification.unify` or defining a new subtype of
 `UnificationStrategy`.
+
+Currently only `Vector` and `Tuple` sequence types are supported.  To
+support additional sequence types, see the macro
+`@generate_unify_indexable_methods` in `src/unify.jl`.
 
 It is not heavily tested.
 
