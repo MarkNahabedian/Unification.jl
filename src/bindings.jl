@@ -31,13 +31,17 @@ same(::Any, Var1::AbstractVar) = false
 
 """
 A Unification variable for subsequences.
+The associated value will be a SubArray.
+The presence of more than one SubseqVar in
+the same sequence allows for multiple
+unifications, and combiniatorial explosion
+in finding them.
 """
 struct SubseqVar <: AbstractVar
     name::Symbol
 
     SubseqVar(name::AbstractString) = SubseqVar(Symbol(name))
     SubseqVar(name::Symbol) = new(name)
-
 end
 
 
