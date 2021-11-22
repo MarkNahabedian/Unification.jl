@@ -110,3 +110,13 @@ end
 
 [Russel and Norvig](https://github.com/aimacode/aima-python/blob/9ea91c1d3a644fdb007e8dd0870202dcd9d078b6/logic4e.py#L1307)
 
+
+## Alternatives
+
+If this is the wrong shape or size of hammer for your particular
+pattern matching needs, take a looh at these alternatives:
+
+[@Match.match](https://kmsquire.github.io/Match.jl/latest/)
+
+[@MacroTools.capture](https://fluxml.ai/MacroTools.jl/stable/pattern-matching/)
+
