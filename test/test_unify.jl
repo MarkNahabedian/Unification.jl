@@ -101,6 +101,62 @@ end
     end
 end
 
+@testset "unify SubseqVar head 1" begin
+    unified = false
+    unify([V"a...", 5, 6], 1:6) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (1:4, true)
+    end
+    @test unified == true
+end
+
+@testset "unify SubseqVar tail 1" begin
+    unified = false
+    unify([1, 2, V"a..."], 1:6) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (3:6, true)
+    end
+    @test unified == true
+end
+
+@testset "unify SubseqVar middle 1" begin
+    unified = false
+    unify([1, 2, V"a...", 7, 8], 1:8) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (3:6, true)
+    end
+    @test unified == true
+end
+
+
+@testset "unify SubseqVar head 2" begin
+    unified = false
+    unify(1:6, [V"a...", 5, 6]) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (1:4, true)
+    end
+    @test unified == true
+end
+
+@testset "unify SubseqVar tail 2" begin
+    unified = false
+    unify(1:6, [1, 2, V"a..."]) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (3:6, true)
+    end
+    @test unified == true
+end
+
+@testset "unify SubseqVar middle 2" begin
+    unified = false
+    unify(1:8, [1, 2, V"a...", 7, 8]) do bindings
+        unified = true
+        @test lookup(bindings, V"a...") == (3:6, true)
+    end
+    @test unified == true
+end
+
+
 @testset "unification examples" begin
     unified = false
     logging_unification_failures(false #= Logging.Debug =#) do

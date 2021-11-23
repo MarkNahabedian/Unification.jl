@@ -189,11 +189,42 @@ function unify_indexable(continuation, index1, thing1, index2, thing2,
         @unification_failure(thing1, thing2)
         return
     end
-    unify(thing1[index1], thing2[index2], bindings) do bindings
-        unify_indexable(continuation,
-                        index1 + 1, thing1,
-                        index2 + 1, thing2,
-                        bindings)
+    thing1elt = thing1[index1]
+    thing2elt = thing2[index2]
+    if isa(thing1elt, SubseqVar) && isa(thing2elt, SubseqVar)
+        ubind(thing1elt, thing2elt) do bindings
+            unify_indexable(continuation,
+                            index1 + 1, thing1,
+                            index2 + 1, thing2,
+                            bindings)
+        end
+    elseif isa(thing1elt, SubseqVar)
+        # Try each length of subsequence of thing2
+        for end2 in index2:lastindex(thing2)
+            ubind(thing1elt, view(thing2, index2:end2)) do bindings
+                unify_indexable(continuation,
+                                index1 + 1, thing1,
+                                end2 + 1, thing2,
+                                bindings)
+            end
+        end
+    elseif isa(thing2elt, SubseqVar)
+        # Try each length of subsequence of thing1
+        for end1 in index1:lastindex(thing1)
+            ubind(thing2elt, view(thing1, index1:end1)) do bindings
+                unify_indexable(continuation,
+                                end1 + 1, thing1,
+                                index2 + 1, thing2,
+                                bindings)
+            end
+        end
+    else
+        unify(thing1[index1], thing2[index2], bindings) do bindings
+            unify_indexable(continuation,
+                            index1 + 1, thing1,
+                            index2 + 1, thing2,
+                            bindings)
+        end
     end
 end
 
@@ -216,6 +247,7 @@ macro generate_unify_indexable_methods(types...)
     return :(begin $(defs...) end)
 end
 
+##### Maybe these types can be computed from methods(IndexStyle) that return IndexLinear.
 @generate_unify_indexable_methods(AbstractVector, Tuple)
 
 
