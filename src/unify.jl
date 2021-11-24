@@ -178,6 +178,50 @@ end
     
 ### Things that are finitely indexable:
 
+struct UnifyIndexableElement
+    thing
+    index::Int
+
+    UnifyIndexableElement(thing) = new(thing, firstindex(thing))
+    UnifyIndexableElement(thing, index::Int) = new(thing, index)
+end
+
+function next(e::UnifyIndexableElement)
+    UnifyIndexableElement(e.thing, e.index + 1)
+end
+
+function exhausted(e::UnifyIndexableElement)
+    e.index > lastindex(e.thing)
+end
+
+function elt(e::UnifyIndexableElement)
+    e.thing[e.index]
+end
+
+function unify_indexable(continuation, thing1, thing2,
+                         bindings::AbstractBindings)
+    unify_indexable(continuation,
+                    UnifyIndexableElement(thing1),
+                    UnifyIndexableElement(thing2),
+                    bindings)
+end
+
+function unify_indexable(continuation,
+                         e1::UnifyIndexableElement, e2::UnifyIndexableElement,
+                         bindings::AbstractBindings)
+    if exhausted(e1) && exhausted(e2)
+        return continuation(bindings)
+    end
+    if exhausted(e1) || exhausted(e2)
+        @unification_failure(thing1, thing2)
+        return
+    end
+    unify(elt(e1), elt(e2), bindings) do bindings
+        unify_indexable(continuation, next(e1), next(e2), bindings)
+    end
+end
+
+#=
 function unify_indexable(continuation, index1, thing1, index2, thing2,
                          bindings::AbstractBindings)
     exhausted1 = index1 > lastindex(thing1)
@@ -192,7 +236,7 @@ function unify_indexable(continuation, index1, thing1, index2, thing2,
     thing1elt = thing1[index1]
     thing2elt = thing2[index2]
     if isa(thing1elt, SubseqVar) && isa(thing2elt, SubseqVar)
-        ubind(thing1elt, thing2elt) do bindings
+        ubind(thing1elt, thing2elt, bindings) do bindings
             unify_indexable(continuation,
                             index1 + 1, thing1,
                             index2 + 1, thing2,
@@ -201,7 +245,7 @@ function unify_indexable(continuation, index1, thing1, index2, thing2,
     elseif isa(thing1elt, SubseqVar)
         # Try each length of subsequence of thing2
         for end2 in index2:lastindex(thing2)
-            ubind(thing1elt, view(thing2, index2:end2)) do bindings
+            ubind(thing1elt, view(thing2, index2:end2), bindings) do bindings
                 unify_indexable(continuation,
                                 index1 + 1, thing1,
                                 end2 + 1, thing2,
@@ -211,7 +255,7 @@ function unify_indexable(continuation, index1, thing1, index2, thing2,
     elseif isa(thing2elt, SubseqVar)
         # Try each length of subsequence of thing1
         for end1 in index1:lastindex(thing1)
-            ubind(thing2elt, view(thing1, index1:end1)) do bindings
+            ubind(thing2elt, view(thing1, index1:end1), bindings) do bindings
                 unify_indexable(continuation,
                                 end1 + 1, thing1,
                                 index2 + 1, thing2,
@@ -235,6 +279,7 @@ function unify_indexable(continuation, thing1, thing2,
                     firstindex(thing2), thing2,
                     bindings)
 end
+=#
 
 macro generate_unify_indexable_methods(types...)
     defs = []
