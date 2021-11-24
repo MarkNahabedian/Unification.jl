@@ -179,6 +179,9 @@ Call `continuation` with the binding of `var` to `val` added
 to `bindings`.
 """
 function ubind(continuation, var::AbstractVar, value::Any,
+               # Maybe we shouldn't default bindings.  FOrgetting to
+               # include bindings in a call to ubind seems to be a
+               # common source of errors.
                bindings::AbstractBindings = EmptyBindings())
     continuation(Bindings(var, value, bindings))
 end
