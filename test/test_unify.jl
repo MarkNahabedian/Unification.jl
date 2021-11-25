@@ -101,7 +101,7 @@ end
     end
 end
 
-#=
+
 @testset "unify SubseqVar head 1" begin
     unified = false
     unify([V"a...", 5, 6], 1:6) do bindings
@@ -128,7 +128,6 @@ end
     end
     @test unified == true
 end
-
 
 @testset "unify SubseqVar head 2" begin
     unified = false
@@ -159,40 +158,32 @@ end
 
 @testset "unify multiple adjacent SubseqVars" begin
     found = Set()
-    logging_unification_failures(Logging.Debug) do
-        with_logger(SimpleLogger(stdout, Logging.Debug)) do
-            unify(1:6, [1, V"a...", V"b...", 5, 6]) do bindings
-                @debug bindings
-                va, fa = lookup(bindings, V"a...")
-                vb, fb = lookup(bindings, V"b...")
-                @test fa == true
-                @test fb == true
-                push!(found, (va, vb))
-            end
-            @debug found
-        end
+    unify(1:6, [1, V"a...", V"b...", 5, 6]) do bindings
+        @debug bindings
+        va, fa = lookup(bindings, V"a...")
+        vb, fb = lookup(bindings, V"b...")
+        @test fa == true
+        @test fb == true
+        push!(found, (va, vb))
     end
+    @debug found
     @test length(found) == 4
-    @test found = Set([([], [2, 3, 4]),
-                       ([2], [3, 4]),
-                       ([2, 3], [4]),
-                       ([2, 3, 4], [])])
+    @test found == Set([([], [2, 3, 4]),
+                        ([2], [3, 4]),
+                        ([2, 3], [4]),
+                        ([2, 3, 4], [])])
 end
-=#
+
 
 @testset "unification examples" begin
     unified = false
-    logging_unification_failures(false #= Logging.Debug =#) do
-         with_logger(SimpleLogger(stdout, Logging.Debug)) do
-            unify([Struct1(3, V"foo"), 12],
-                  [Struct1(V"bar", V"c"), V"c"]) do bindings
-                      unified = true
-                      @test lookup(bindings, V"bar") == (3, true)
-                      @test lookup(bindings, V"foo") == (12, true)
-                      @test lookup(bindings, V"c") == (12, true)
-                  end
-        end
-    end
+    unify([Struct1(3, V"foo"), 12],
+          [Struct1(V"bar", V"c"), V"c"]) do bindings
+              unified = true
+              @test lookup(bindings, V"bar") == (3, true)
+              @test lookup(bindings, V"foo") == (12, true)
+              @test lookup(bindings, V"c") == (12, true)
+          end
     @test unified == true
 end
 
