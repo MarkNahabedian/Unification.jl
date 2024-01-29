@@ -4,9 +4,15 @@ authors = ["MarkNahabedian <naha@mit.edu> and contributors"]
 version = "0.1.0"
 
 [deps]
+DarkMode = "933edf66-562e-4494-9e5f-31d7e8b9849e"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 NahaJuliaLib = "9569be99-1faa-4e84-9751-444b87a7f9a0"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UnitfulUS = "7dc9378f-8956-57ef-a780-aa31cc70ff3d"
 
 [compat]
 julia = "1"
