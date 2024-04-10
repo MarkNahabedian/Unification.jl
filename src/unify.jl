@@ -1,7 +1,7 @@
 
 export unify
 export UNIFICATION_FAILURE_LOGGING_LEVEL, logging_unification_failures
-export unification_failure
+export @unification_failure, @unify_equal
 
 """
     UNIFICATION_FAILURE_LOGGING_LEVEL
@@ -188,13 +188,34 @@ Define a method on `unify` for type `typ` that only succeeds if the
 two instances of `typ` satisfy `op`.
 """
 macro unify_equal(typ, op)
-    :(function unify(continuation, thing1::$typ, thing2::$typ,
-                     bindings::AbstractBindings)::Nothing
-          if $op(thing1, thing2)
-              return continuation(bindings)
-          end
-          @unification_failure(thing1, thing2)
-      end)
+    r = 
+        quote
+            function Unification.unify(continuation,
+                                       thing1::$typ, thing2::$typ,
+                                       bindings::AbstractBindings)::Nothing
+                if $op(thing1, thing2)
+                    return continuation(bindings)
+                end
+                #=
+                @unification_failure(thing1, thing2,
+                                     _file = $(__source__.file),
+                                     _line = $(__source__.line),
+                                     _module = $__module__)
+                =#
+            end
+        end
+    # A bunch of insane hoops to jump through in order to get the
+    # right source location recorded:
+    r = MacroTools.postwalk(MacroTools.rmlines, r)
+    if isexpr(r, :block)
+        if isexpr(r.args[1], :function)
+            if isexpr(r.args[1].args[2], :block)
+                insert!(r.args[1].args[2].args, 1, __source__)
+            end
+        end
+        insert!(r.args, 1, __source__)
+    end
+    esc(r)
 end
 
 # Numbers of different types that might be equal:
