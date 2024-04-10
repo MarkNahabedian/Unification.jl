@@ -196,12 +196,10 @@ macro unify_equal(typ, op)
                 if $op(thing1, thing2)
                     return continuation(bindings)
                 end
-                #=
                 @unification_failure(thing1, thing2,
                                      _file = $(__source__.file),
                                      _line = $(__source__.line),
                                      _module = $__module__)
-                =#
             end
         end
     # A bunch of insane hoops to jump through in order to get the
