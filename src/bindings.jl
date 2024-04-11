@@ -1,7 +1,7 @@
 
 export AbstractVar, Var, SubseqVar, Ignore
 export @V_str
-export AbstractBindings, EmptyBindings, Bindings
+export AbstractBindings, EmptyBindings, Bindings, show_bindings
 export lookupfirst, lookupall, lookupequiv, lookup
 export ubind, toDict
 
@@ -46,7 +46,7 @@ end
 
 
 """
-Ignore match3es anything but captures nothing.
+Ignore matches anything but captures nothing.
 """
 struct Ignore end
 
@@ -87,7 +87,24 @@ struct Bindings <: AbstractBindings
         new(var, val, tail)
 end
 
-Base.iterate(b::Bindings, state::Bindings=b) = (state.var, state.val), state.tail
+Base.iterate(b::Bindings, state::Bindings=b) =
+    (state.var, state.val), state.tail
+
+
+"""
+    show_bindings(bindings::AbstractBindings)::Nothing
+
+Prints the bindings.
+
+`show_bindings` can be used as the continuation function in `unify`
+for debugging what gets bound to what.
+"""
+function show_bindings(bindings::AbstractBindings)::Nothing
+    for (var, val) in bindings
+        println(var, "\t", val)
+    end
+    return nothing
+end
 
 
 """
