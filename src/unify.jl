@@ -1,7 +1,7 @@
 
 export unify
 export UNIFICATION_FAILURE_LOGGING_LEVEL, logging_unification_failures
-export unification_failure
+export @unification_failure, @unify_equal
 
 """
     UNIFICATION_FAILURE_LOGGING_LEVEL
@@ -22,7 +22,8 @@ end
 
 """
    @unification_failure(thing1, thing2)
-Logs that `unify` failed for `thing` and `thing2`.
+
+Logs that `unify` failed for `thing1` and `thing2`.
 If the value of `UNIFICATION_FAILURE_LOGGING_LEVEL` is a
 Logging.LogLevel` then it is the log level for this message,
 otherwise no log entry is made.
@@ -53,43 +54,61 @@ macro unification_failure(thing1, thing2, more...)
                     $args...)
         end)
 end
-    
+
 
 """
-    unify(continuation, expression1, expression2, bindings=EmptyBindings())
+    unify(continuation, expression1, expression2)::Nothing
+    unify(continuation, expression1, expression2, bindings=EmptyBindings())::Nothing
 
-Unify the two expressions, calling `continuation` with each set of
-bindings which satisfy the unification.
+Unifies the two expressions, calling `continuation` with each set of
+bindings which satisfy the unification.  `continuation` should return
+nothing.
+
+`continuation` is a function with the same signature as
+`show_bindings`.
+
+There is no return value.
 """
 function unify end
 
-function unify(continuation, thing1, thing2)
+function unify(continuation, thing1, thing2)::Nothing
     unify(continuation, thing1, thing2, EmptyBindings())
+    return nothing
 end
 
 ### Ignore
 
-function unify(continuation, ::Ignore, ::Any, bindings::AbstractBindings)
-  continuation(bindings)
+function unify(continuation, ::Ignore, ::Any,
+               bindings::AbstractBindings)::Nothing
+    continuation(bindings)
+    return nothing
 end
 
-function unify(continuation, ::Any, ::Ignore, bindings::AbstractBindings)
-  continuation(bindings)
+function unify(continuation, ::Any, ::Ignore,
+               bindings::AbstractBindings)::Nothing
+    continuation(bindings)
+    return nothing
 end
 
 ### Var
 
-function unify(continuation, var::Var, other::Any, bindings::AbstractBindings)
+function unify(continuation, var::Var, other::Any,
+               bindings::AbstractBindings)::Nothing
     unify_var(continuation, var, other, bindings)
+    return nothing
 end
 
-function unify(continuation, other::Any, var::Var, bindings::AbstractBindings)
+function unify(continuation, other::Any, var::Var,
+               bindings::AbstractBindings)::Nothing
     unify_var(continuation, var, other, bindings)
+    return nothing
 end
 
-function unify(continuation, var1::Var, var2::Var, bindings::AbstractBindings)
+function unify(continuation, var1::Var, var2::Var,
+               bindings::AbstractBindings)::Nothing
     ##### Is this enough
     unify_var(continuation, var1, var2, bindings)
+    return nothing
 end
 
 """
@@ -100,26 +119,32 @@ struct NoCirc <: AbstractVar
     var::AbstractVar
 end
 
-function unify(continuation, nc::NoCirc, ::Any, bindings::AbstractBindings)
+function unify(continuation, nc::NoCirc, ::Any,
+               bindings::AbstractBindings)::Nothing
     continuation(bindings)
+    return nothing
 end
 
-function unify(continuation, nc::NoCirc, var::Var, bindings::AbstractBindings)
+function unify(continuation, nc::NoCirc, var::Var,
+               bindings::AbstractBindings)::Nothing
     if same(nc.var, var)
-        return continuation(bindings)
+        continuation(bindings)
     end
     continuation(bindings)
+    return nothing
 end
 
-function unify(continuation, ::Any, nc::NoCirc, bindings)
+function unify(continuation, ::Any, nc::NoCirc, bindings)::Nothing
     throw(ErrorException("$nc appeared in right hand side of unify."))
 end
 
-function unify_var(continuation, var::Var, other::Any, bindings::AbstractBindings)
+function unify_var(continuation, var::Var, other::Any,
+                   bindings::AbstractBindings)::Nothing
     values, _ = lookupequiv(bindings, var)
     if length(values) > 1
         # Variable's value is already ambiguous.
-        @unification_failure(var, other, values)
+        @unification_failure(var, other,
+                             values=values)
         return
     end
     if length(values) == 1
@@ -136,6 +161,7 @@ function unify_var(continuation, var::Var, other::Any, bindings::AbstractBinding
     end
     =#
     ubind(continuation, var, other, bindings)
+    nothing
 end
 
 
@@ -144,7 +170,8 @@ end
 ### default
 
 ##### Is this method shadowed by the one on T, T where T?
-function unify(continuation, thing1::Any, thing2::Any, bindings::AbstractBindings)
+function unify(continuation, thing1::Any, thing2::Any,
+               bindings::AbstractBindings)::Nothing
     if thing1 == thing2
         return continuation(bindings)
     end
@@ -156,16 +183,37 @@ end
 
 """
     @unify_equal(typ, op)
+
 Define a method on `unify` for type `typ` that only succeeds if the
 two instances of `typ` satisfy `op`.
 """
 macro unify_equal(typ, op)
-    :(function unify(continuation, thing1::$typ, thing2::$typ, bindings::AbstractBindings)
-          if $op(thing1, thing2)
-              return continuation(bindings)
-          end
-          @unification_failure(thing1, thing2)
-      end)
+    r = 
+        quote
+            function Unification.unify(continuation,
+                                       thing1::$typ, thing2::$typ,
+                                       bindings::AbstractBindings)::Nothing
+                if $op(thing1, thing2)
+                    return continuation(bindings)
+                end
+                @unification_failure(thing1, thing2,
+                                     _file = $(__source__.file),
+                                     _line = $(__source__.line),
+                                     _module = $__module__)
+            end
+        end
+    # A bunch of insane hoops to jump through in order to get the
+    # right source location recorded:
+    r = MacroTools.postwalk(MacroTools.rmlines, r)
+    if isexpr(r, :block)
+        if isexpr(r.args[1], :function)
+            if isexpr(r.args[1].args[2], :block)
+                insert!(r.args[1].args[2].args, 1, __source__)
+            end
+        end
+        insert!(r.args, 1, __source__)
+    end
+    esc(r)
 end
 
 # Numbers of different types that might be equal:
@@ -199,18 +247,21 @@ function elt(e::UnifyIndexableElement)
 end
 
 function unify_indexable(continuation, thing1, thing2,
-                         bindings::AbstractBindings)
+                         bindings::AbstractBindings)::Nothing
     unify_indexable(continuation,
                     UnifyIndexableElement(thing1),
                     UnifyIndexableElement(thing2),
                     bindings)
+    nothing
 end
 
 function unify_indexable(continuation,
-                         e1::UnifyIndexableElement, e2::UnifyIndexableElement,
-                         bindings::AbstractBindings)
+                         e1::UnifyIndexableElement,
+                         e2::UnifyIndexableElement,
+                         bindings::AbstractBindings)::Nothing
     if exhausted(e1) && exhausted(e2)
-        return continuation(bindings)
+        continuation(bindings)
+        return
     end
     if exhausted(e1) || exhausted(e2)
         @unification_failure(e1, e2)
@@ -223,21 +274,24 @@ function unify_indexable(continuation,
         return
     end
     if isa(elt(e1), SubseqVar)
-        return unify_indexable(continuation, elt(e1), e1, e2, bindings)
+        unify_indexable(continuation, elt(e1), e1, e2, bindings)
+        return
     end
     if isa(elt(e2), SubseqVar)
-        return unify_indexable(continuation, elt(e2), e2, e1, bindings)
+        unify_indexable(continuation, elt(e2), e2, e1, bindings)
+        return
     end
     unify(elt(e1), elt(e2), bindings) do bindings
-        return unify_indexable(continuation, next(e1), next(e2), bindings)
+        unify_indexable(continuation, next(e1), next(e2), bindings)
+        return
     end
 end
 
 function unify_indexable(continuation,
                          var::SubseqVar, varUIE::UnifyIndexableElement,
                          e::UnifyIndexableElement,
-                         bindings::AbstractBindings)
-    # Try each length of subsequence of thing2
+                         bindings::AbstractBindings)::Nothing
+    # Try each length of remaining subsequences of thing2
     for endindex in (e.index - 1):(lastindex(e.thing))
         ubind(var, view(e.thing, (e.index):endindex), bindings) do bindings
             unify_indexable(continuation,
@@ -268,7 +322,8 @@ end
 # Hacky predicate dispatch mechanism.
 abstract type UnificationStrategy end
 
-function unify(continuation, thing1::T, thing2::T, bindings::AbstractBindings) where T
+function unify(continuation, thing1::T, thing2::T,
+               bindings::AbstractBindings)::Nothing where {T}
     # Short circuit for objects that are equal and structs with no fields
     if thing1 == thing2
         return continuation(bindings)

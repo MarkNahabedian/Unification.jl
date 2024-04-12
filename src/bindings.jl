@@ -1,7 +1,7 @@
 
 export AbstractVar, Var, SubseqVar, Ignore
 export @V_str
-export AbstractBindings, EmptyBindings, Bindings
+export AbstractBindings, EmptyBindings, Bindings, show_bindings
 export lookupfirst, lookupall, lookupequiv, lookup
 export ubind, toDict
 
@@ -30,12 +30,11 @@ same(::Any, Var1::AbstractVar) = false
 
 
 """
-A Unification variable for subsequences.
-The associated value will be a SubArray.
-The presence of more than one SubseqVar in
-the same sequence allows for multiple
-unifications, and combiniatorial explosion
-in finding them.
+SubseqVar provides a Unification variable for subsequences.  The
+associated value will be a SubArray.  The presence of more than one
+SubseqVar in the same sequence allows for multiple unifications, and
+combiniatorial explosion in finding them.
+
 """
 struct SubseqVar <: AbstractVar
     name::Symbol
@@ -46,20 +45,22 @@ end
 
 
 """
-Ignore match3es anything but captures nothing.
+Ignore matches anything but captures nothing.
 """
 struct Ignore end
 
+function var_from_string(s::AbstractString)
+    if length(s) == 0
+        return Ignore()
+    end
+    if endswith(s, "...")
+        return SubseqVar(s)
+    end
+    Var(s)
+end
 
 macro V_str(name)
-    @assert name isa AbstractString
-    if length(name) == 0
-        :(Ignore())
-    elseif endswith(name, "...")
-        :(SubseqVar($name))
-    else
-        :(Var($name))
-    end
+    :(var_from_string($name))
 end 
 
 
@@ -87,7 +88,24 @@ struct Bindings <: AbstractBindings
         new(var, val, tail)
 end
 
-Base.iterate(b::Bindings, state::Bindings=b) = (state.var, state.val), state.tail
+Base.iterate(b::Bindings, state::Bindings=b) =
+    (state.var, state.val), state.tail
+
+
+"""
+    show_bindings(bindings::AbstractBindings)::Nothing
+
+Prints the bindings.
+
+`show_bindings` can be used as the continuation function in `unify`
+for debugging what gets bound to what.
+"""
+function show_bindings(bindings::AbstractBindings)::Nothing
+    for (var, val) in bindings
+        println(var, "\t", val)
+    end
+    return nothing
+end
 
 
 """
@@ -160,6 +178,7 @@ end
 
 """
     lookup(bindings::AbstractBindings, var::AbstractVar)
+
 Return the value assoiciated with `var` in `bindings`.
 The second return value is `true` if a unique value is found
 and `false` otherwise.
@@ -175,11 +194,12 @@ end
 
 """
     ubind(continuation, var::AbstractVar, val::Any, [::AbstractBindings])
+
 Call `continuation` with the binding of `var` to `val` added
 to `bindings`.
 """
 function ubind(continuation, var::AbstractVar, value::Any,
-               # Maybe we shouldn't default bindings.  FOrgetting to
+               # Maybe we shouldn't default bindings.  Forgetting to
                # include bindings in a call to ubind seems to be a
                # common source of errors.
                bindings::AbstractBindings = EmptyBindings())

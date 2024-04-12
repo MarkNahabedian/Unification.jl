@@ -27,17 +27,21 @@ end
     @test test_unify("foo", "foob") == false
 end
 
+struct Struct0 end
+
+struct Struct0a end
+
+struct Struct1
+    a
+    b
+end
+
+struct Struct2
+    a
+    b
+end
+
 @testset "Unify Fields" begin
-    struct Struct0 end
-    struct Struct0a end
-    struct Struct1
-        a
-        b
-    end
-    struct Struct2
-        a
-        b
-    end
     @test test_unify(Struct1(1, Struct0()), Struct1(1, Struct0())) == true
     @test test_unify(Struct1(1, 2), Struct1(1, 3)) == false
     @test test_unify(Struct1(1, 2), Struct2(1, 2)) == false
@@ -52,10 +56,6 @@ end
 @testset "unify ignore" begin
     @test test_unify(1, V"") == true
     @test test_unify(V"", 2) == true
-    struct Struct1
-        a
-        b
-    end
     @test test_unify(Struct1(V"", 2), Struct1(1, 2)) == true
     @test test_unify(Struct1(2, V""), Struct1(2, 1)) == true
     @test test_unify(Struct0(), Struct0a()) == false
@@ -73,10 +73,6 @@ end
 end
 
 @testset "unify variables" begin
-    struct Struct1
-        a
-        b
-    end
     unify(Struct1(V"a", V"b"), Struct1(:a, :b)) do bindings
         @test lookup(bindings, V"a") == (:a, true)
         @test lookup(bindings, V"b") == (:b, true)
@@ -100,7 +96,6 @@ end
         @test lookup(bindings, V"a") == (2, true)
     end
 end
-
 
 @testset "unify SubseqVar head 1" begin
     unified = false
